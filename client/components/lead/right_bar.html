@@ -1,0 +1,80 @@
+<h4><strong>Info</strong></h4>
+<a class="btn btn-primary btn-block" ng-hide="slrbCtrl.editing" style="margin-bottom:10px" ng-click="slrbCtrl.startEditing()">Edit</a>
+
+<form ng-submit="slrbCtrl.submitEditing()">
+	<button class="btn btn-primary btn-block" type="submit" ng-show="slrbCtrl.editing" style="margin-bottom:10px">Save changes</button>
+
+	<strong>Name</strong>
+	<h5 ng-hide="slrbCtrl.editing">{{slrbCtrl.$stateParams.lead.name}}</h5>
+	<input class="form-control input-sm margin-b-s" type="text" ng-show="slrbCtrl.editing" placeholder="input" ng-model="slrbCtrl.editingLead.name"
+	required>
+	<strong>Contacts</strong>
+	<tags-input ng-show="slrbCtrl.editing" add-from-autocomplete-only="true" 
+		on-tag-added="slrbCtrl.contactAdded($tag)"
+		placeholder="Add/remove contact"
+		replace-spaces-with-dashes="false"
+		on-tag-removed="slrbCtrl.contactRemoved($tag)"
+		ng-model="slrbCtrl.editingLead.softContacts" display-property="name">
+		<auto-complete source="slrbCtrl.loadContacts($query)" 
+                     min-length="0" 
+                     debounce-delay="0"
+                     max-results-to-show="10"></auto-complete>
+	</tags-input>
+	
+	<!--tags-wrap-->
+	<div ng-hide="slrbCtrl.editing">
+		<div class="field-with-icon margin-b-s">
+			<span class="glyphicon glyphicon-user" aria-hidden="true"></span>
+			<select class="form-control input-sm" ng-model="slrbCtrl.selectedContact" ng-options="contact as contact.name for contact in slrbCtrl.$stateParams.lead.contacts">
+			</select>
+		</div>
+		<!--field-with-icon-->
+
+		<div class="field-with-icon margin-b-s">
+			<span class="glyphicon glyphicon-phone" aria-hidden="true"></span>
+			<input class="form-control input-sm" type="text" placeholder="Not set" ng-model="slrbCtrl.selectedContact.contactNumber"
+			readonly>
+		</div>
+		<!--field-with-icon-->
+
+		<div class="field-with-icon margin-b-s">
+			<span class="glyphicon glyphicon-envelope" aria-hidden="true"></span>
+			<input class="form-control input-sm" type="text" placeholder="Not set" ng-model="slrbCtrl.selectedContact.email" readonly>
+		</div>
+		<!--field-with-icon-->
+
+		<div class="field-with-icon margin-b-l">
+			<span class="glyphicon glyphicon-globe" aria-hidden="true"></span>
+			<input class="form-control input-sm" type="text" placeholder="Not set" ng-model="slrbCtrl.selectedContact.website" readonly>
+		</div>
+		<!--field-with-icon-->
+	</div>
+	<strong>Description</strong>
+	<h5 ng-hide="slrbCtrl.editing">{{slrbCtrl.$stateParams.lead.contract || 'No description'}}</h5>
+	<input class="form-control input-sm margin-b-l" type="text" placeholder="Enter description" ng-show="slrbCtrl.editing" ng-model="slrbCtrl.editingLead.contract">
+
+	<strong>Status</strong>
+	<h5 ng-hide="slrbCtrl.editing">{{slrbCtrl.$stateParams.lead.status.name}}</h5>
+	<select class="form-control input-sm margin-b-l" ng-show="slrbCtrl.editing" ng-options="status as status.name for status in slrbCtrl.$LeadRESTService.allLeadStatusesCached"
+	ng-model="slrbCtrl.editingLead.status" required>
+		<option value=""></option>
+	</select>
+	
+	
+
+	<strong>Progress: </strong>
+	<rzslider rz-slider-model="slrbCtrl.indexOfSelectedStatus" rz-slider-options="slrbCtrl.showingSliderOptions"></rzslider>
+	
+	
+	
+
+	<strong>Estimates value: </strong>
+	<h5 ng-hide="slrbCtrl.editing">{{slrbCtrl.$stateParams.amount || 'Not set'}}</h5>
+	<input class="form-control input-sm margin-b-l" type="number" placeholder="Enter estimate value" ng-show="slrbCtrl.editing"
+	ng-model="slrbCtrl.editingLead.amount">
+
+
+
+	<a class="btn btn-danger btn-block" ng-hide="slrbCtrl.editing && slrbCtrl.roleInLead.role.code == 'OWNER'" ng-click="slrbCtrl.deleteLead()">Delete lead</a>
+	<a class="btn btn-danger btn-block" ng-show="slrbCtrl.editing" ng-click="slrbCtrl.cancelEdit()">Cancel editing</a>
+</form>
