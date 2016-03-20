@@ -5,11 +5,12 @@ export class SocketIOCymplarService {
 
         constructor(io: SocketIO.Server) {
                 io.on('connection', (socket: SocketIO.Socket) => {
-                        console.log('someone is connected');
- 
+                        
                         this.generateOrganizationConfiguration(socket);
                         
                         this.generateLeadLogConfiguration(socket);
+                        
+                        this.generateLeadChatConfiguration(socket);
                 });
 	}
         
@@ -55,6 +56,8 @@ export class SocketIOCymplarService {
                 socket.on('leadLogJoin', (notification: SocketNotification) => {
                         const room = ObjectUtil.getStringUnionProperty(notification.lead);
                         
+                        console.log('someone joined the room: ' + room);
+ 
                         const sendFormat = {
                                 success: true,
                                 data: notification,
@@ -111,11 +114,91 @@ export class SocketIOCymplarService {
                         
                         socket.broadcast.to(room).emit('leadLogEdited', sendFormat);
                 });
+                
+                socket.on('leadLogDeleted', (notification: SocketNotification) => {
+                        const room = ObjectUtil.getStringUnionProperty(notification.lead);
+                        
+                        const sendFormat = {
+                                success: true,
+                                data: notification,
+                                message: 'deleted log'
+                        };
+                        
+                        socket.broadcast.to(room).emit('leadLogDeleted', sendFormat);
+                });
 	}
         
         generateLeadChatConfiguration(socket: SocketIO.Socket) {
-                socket.on('leadChatJoin', (room: string) => {
-                        socket.join(room);
+                socket.on('leadChatJoin', (notification: SocketNotification) => {
+                        const room = ObjectUtil.getStringUnionProperty(notification.lead);
+                        
+                       const sendFormat = {
+                                success: true,
+                                data: notification,
+                                message: 'Someone joined to the room'
+                        };
+                                        
+                        socket.join(room, (err: Error) => {
+                                if (err) {
+                                    sendFormat.success = false;             
+                                }   
+                        });
+                        
+                        socket.broadcast.to(room).emit('joinedLeadChat', sendFormat);
+                });
+                
+                socket.on('leadChatLeave', (notification: SocketNotification) => {
+                        const room = ObjectUtil.getStringUnionProperty(notification.lead);
+                        
+                        const sendFormat = {
+                                success: true,
+                                data: notification,
+                                message: 'Someone left the room'
+                        };
+                                        
+                        socket.leave(room, (err: Error) => {
+                                if (err) {
+                                    sendFormat.success = false;             
+                                }   
+                        });
+                        
+                        socket.broadcast.to(room).emit('leftLeadChat', sendFormat);
+                });
+                
+                socket.on('leadChatAdd', (notification: SocketNotification) => {
+                        const room = ObjectUtil.getStringUnionProperty(notification.lead);
+                        
+                        const sendFormat = {
+                                success: true,
+                                data: notification,
+                                message: 'new log activity'
+                        };
+                        
+                        socket.broadcast.to(room).emit('leadChatAdded', sendFormat);
+                });
+                
+                socket.on('leadChatEdit', (notification: SocketNotification) => {
+                        const room = ObjectUtil.getStringUnionProperty(notification.lead);
+                        
+                        const sendFormat = {
+                                success: true,
+                                data: notification,
+                                message: 'edited log'
+                        };
+                        
+                        socket.broadcast.to(room).emit('leadChatEdited', sendFormat);
+                });
+                
+                socket.on('leadChatDelete', (notification: SocketNotification) => {
+                        const room = ObjectUtil.getStringUnionProperty(notification.lead);
+                        
+                        const sendFormat = {
+                                success: true,
+                                data: notification,
+                                message: 'deleted log'
+                        };
+                        
+                        socket.broadcast.to(room).emit('leadChatDeleted', sendFormat);
                 });
 	}
 }

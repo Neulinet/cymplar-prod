@@ -15,9 +15,11 @@ db.once('open', () => console.log('%s: Connected to MongoDb on %s', new Date(), 
 
 const subDocumentSchemas = {
   leadStatus: new Schema({
+    id: { type: Number, required: true },
     label: { type: String, required: true },
-    value: { type: String, required: true }
-  }, { _id : false })
+    value: { type: String, required: true },
+    selected: { type: Boolean, default: false }
+  }, { _id: false })
 };
 
 const schemas = {
@@ -192,7 +194,8 @@ const schemas = {
     contract: { type: String },
     amount: { type: Number },
     leadStatuses: [subDocumentSchemas.leadStatus],
-    currentStatus: subDocumentSchemas.leadStatus,
+    currentStatus: { type: Number, required: true, default: 1 },
+    statusTemplateOrganization: { type: ObjectId, ref: 'accountOrganization' },
     createdBy: { type: ObjectId, ref: 'accountUser' },
     createdAt: { type: Number },
     updatedAt: { type: Number }
@@ -232,6 +235,14 @@ const schemas = {
     content: { type: String, required: true },
     dateTime: { type: Number },
     location: { type: String },
+    edited: { type: Boolean },
+    createdBy: { type: ObjectId, ref: 'salesLeadOrganizationMember', required: true },
+    createdAt: { type: Number },
+    updatedAt: { type: Number }
+  }),
+  leadChatLog: new Schema({
+    lead: { type: ObjectId, ref: 'salesLead', required: true },
+    message: { type: String, required: true },
     edited: { type: Boolean },
     createdBy: { type: ObjectId, ref: 'salesLeadOrganizationMember', required: true },
     createdAt: { type: Number },
@@ -287,6 +298,8 @@ export const SalesLeadOrganizationMemberModel = db.model('salesLeadOrganizationM
 export const SalesLeadMemberRoleModel = db.model('salesLeadMemberRole', schemas.salesLeadMemberRole);
 export const LogItemTypeModel = db.model('logItemType', schemas.logItemType);
 export const LogItemModel = db.model('logItem', schemas.logItem);
+export const LeadStatusModel = db.model('leadStatus', subDocumentSchemas.leadStatus);
+export const LeadChatLogModel = db.model('leadChatLog', schemas.leadChatLog);
 
 
 schemas.addressBookGroup.post('remove', function() {
@@ -378,12 +391,13 @@ schemas.accountUser.post('remove', function() {
 schemas.accountOrganization.pre('save', function (next: Function) {
   const obj = this;
   if (obj.isNew) {
-      obj['projectDefaultStatuses'] = [{'label': 'Lost/Inactive', 'value': '0'}, 
-        {'label': 'Opportunity', 'value': '20'}, 
-        {'label': 'Cold', 'value': '40'}, 
-        {'label': 'Warm', 'value': '60'}, 
-        {'label': 'Hot', 'value': '80'},
-        {'label': 'Contract signed', 'value': '100'}];
+      obj['projectDefaultStatuses'] = [];
+      obj['projectDefaultStatuses'].push({ 'id': 0, 'label': 'Lost/Inactive', 'value': '0', 'selected': false}); 
+      obj['projectDefaultStatuses'].push({ 'id': 1, 'label': 'Opportunity', 'value': '20', 'selected': true}); 
+      obj['projectDefaultStatuses'].push({ 'id': 2, 'label': 'Cold', 'value': '40', 'selected': false}); 
+      obj['projectDefaultStatuses'].push({ 'id': 3, 'label': 'Warm', 'value': '60', 'selected': false}); 
+      obj['projectDefaultStatuses'].push({ 'id': 4, 'label': 'Hot', 'value': '80', 'selected': false});
+      obj['projectDefaultStatuses'].push({ 'id': 5, 'label': 'Won', 'value': '100', 'selected': false});
   }
   next();  
 });
@@ -609,4 +623,12 @@ schemas.salesLead.pre('remove', function(next: Function) {
   });
 });
 
+schemas.logItem.pre('save', function (next: Function) {
+  const obj = this;
+  if (!obj.isNew) {
+    this.obj['edited'] = true;  
+  }
+ 
+  next();
+});
 

@@ -262,3 +262,33 @@ export interface SocketNotification extends BaseDto {
   parentsData?: any;
   data?: any;
 }
+
+
+export interface LeadStatus extends BaseDto {
+  id?: number;
+  label?: string;
+  value?: number;
+  selected?: boolean;
+}
+
+export interface ChangeValuesSchema extends BaseDto {
+  name?: string;
+  previousValue?: any;
+  value?: any;
+}
+
+export interface UpdateValues extends BaseDto {
+  key?: any;
+  values?: ChangeValuesSchema[];
+  modified?: boolean;
+}
+
+export interface UpdateResults extends BaseDto {
+  affected?: number;
+}
+
+export interface LeadChatLog extends BaseDto {
+  lead?: string | SalesLead;
+  message?: string;
+  edited?: boolean;
+}

@@ -1,5 +1,6 @@
 ﻿import {SalesLead, SalesLeadContact, SalesLeadOrganizationMember, AccountOrganizationMember, ModelOptions,
-	AuthorizationResponse, AddressBookContact, AccountOrganization} from '../../client/core/dto';
+	AuthorizationResponse, AddressBookContact, AccountOrganization, UpdateResults, LeadStatus, UpdateValues, 
+	ChangeValuesSchema} from '../../client/core/dto';
 import {SalesLeadModel} from '../core/model';
 import {BaseService} from '../core/base_service';
 import {salesLeadContactService} from '../sales_lead_contact/sales_lead_contact_service';
@@ -73,7 +74,13 @@ export class SalesLeadService extends BaseService<SalesLead> {
 				const updateSalesLeadPromises: Promise<any>[] = [];
 				updateSalesLeadPromises.push(Promise.resolve(objectToUpdate)); // Keeps the object tp be updated in results[0];
 				
-				if (ObjectUtil.isPresent(data['currentStatus']) && (objectToUpdate['currentStatus']['label'] !== data['currentStatus']['label'])) {
+				const currentStatusIndex = data['currentStatus'];
+				const previousStatusIndex = objectToUpdate['currentStatus'];
+				
+				if (ObjectUtil.isPresent(currentStatusIndex) && (currentStatusIndex !== previousStatusIndex)) {
+
+					const oldStage = data['leadStatuses'][previousStatusIndex];
+					const newStage = objectToUpdate['leadStatuses'][currentStatusIndex]; 
 					
 					const logItemModelOptions: ModelOptions = {
 						authorization: newOptions.authorization,
@@ -82,7 +89,7 @@ export class SalesLeadService extends BaseService<SalesLead> {
 				
 					const statusChange = {
 						content: `The status of the lead changed from 
-							${objectToUpdate['currentStatus']['label']} to ${data['currentStatus']['label']}`
+							${oldStage['label']} to ${newStage['label']}`
 					};
 					
 					updateSalesLeadPromises.push(logItemService.createStatusChangeLog(statusChange, logItemModelOptions));
@@ -92,6 +99,11 @@ export class SalesLeadService extends BaseService<SalesLead> {
 			})
 			.then((results: any) => {
 				const objectToUpdate = results[0];
+				
+				if (results.length > 1) {
+					data['generatedLog'] = 	results[1];
+				}
+				
 				for (let prop in data) {
 					objectToUpdate[prop] = data[prop];
 				}
@@ -103,6 +115,10 @@ export class SalesLeadService extends BaseService<SalesLead> {
 					savedDoc.populate(txModelOptions.population, (err: Error, populatedObj: any) => {
 						if (err) {
 							return reject(err);
+						}
+						
+						if (ObjectUtil.isPresent(data['generatedLog'])) {
+							populatedObj['generatedLog'] = 	data['generatedLog'];
 						}
 						resolve(populatedObj.toObject());
 					});
@@ -222,11 +238,104 @@ export class SalesLeadService extends BaseService<SalesLead> {
 		});
 	}
 	
+	updateChildrenStages(data: AccountOrganization): Promise<UpdateResults> {
+		return new Promise<UpdateResults>((resolve: Function, reject: Function) => {
+			
+			if (ObjectUtil.isPresent(data['previousOrganizationStages'])) {
+				const fieldsToUpdate: UpdateValues[] = [];
+				const fieldsToDelete: string[] = [];
+				const stagesToAdd: LeadStatus[] = [];
+				
+				const previousStages: LeadStatus[] = ObjectUtil.clone(data['previousOrganizationStages']);
+				const newStages: LeadStatus[] = ObjectUtil.clone(data['projectDefaultStatuses']);
+				
+				let i = 0;
+				for (i; i < newStages.length; i++) {
+					if (i < previousStages.length) {
+						
+						const fieldToUpdate: UpdateValues = { modified: false, values: [] };
+
+						if (previousStages[i].label !== newStages[i].label) {
+							fieldToUpdate['key'] = i;
+							fieldToUpdate['modified'] = true;
+							const newLabel: ChangeValuesSchema = {
+								name: 'label',
+								previousValue: previousStages[i].label,
+								value: newStages[i].label
+							};		
+							
+							fieldToUpdate.values.push(newLabel);
+						}
+						
+						if (previousStages[i].value !== newStages[i].value) {
+							fieldToUpdate['key'] = i;
+							fieldToUpdate['modified'] = true;
+							const newValue: ChangeValuesSchema = {
+								name: 'value',
+								previousValue: previousStages[i].value,
+								value: newStages[i].value
+							};		
+							
+							fieldToUpdate.values.push(newValue);
+						}
+						
+						if (fieldToUpdate['modified']) {
+							fieldsToUpdate.push(fieldToUpdate);	
+						}
+					} else {
+						// Keep the statuses that must be added
+						newStages[i]['id'] = i;
+						newStages[i]['selected'] = false;
+						stagesToAdd.push(newStages[i]);
+					}
+				}
+				
+				for (i; i < previousStages.length; i++) {
+					fieldsToDelete.push(i.toString());
+				}
+				
+				this.deleteStages(data, fieldsToDelete)
+				.then((deletedStagesResults: UpdateResults) => {
+						
+					const childrenStageTasks: Promise<UpdateResults>[] = [];
+					childrenStageTasks.push(Promise.resolve(deletedStagesResults));
+					childrenStageTasks.push(this.updateStages(data, fieldsToUpdate));
+					childrenStageTasks.push(this.addStages(data, stagesToAdd));
+					
+					return Promise.all(childrenStageTasks);
+				})
+				.then((childrenTasksResults: UpdateResults[]) => {
+					resolve( { affected: childrenTasksResults.length });					
+				})
+				.catch((err) => reject(err));
+			
+			} else {
+				resolve( { affected: 0 });
+			}
+		});
+	}
+	
+	
+	
+	
 	/* tslint:disable */ // In this switches the default is not needed
 	protected addAuthorizationDataInCreate(modelOptions: ModelOptions = {}) {
 		switch (modelOptions.copyAuthorizationData) {
 			case 'orgMember':
 				modelOptions.additionalData['createdBy'] = modelOptions.authorization.organizationMember._id;
+				const stages: LeadStatus[] = ObjectUtil.getObjectUnionProperty(modelOptions.authorization.organizationMember.organization, 'projectDefaultStatuses');
+				modelOptions.additionalData['leadStatuses'] = stages;
+				
+				let defaultStatus = 1;
+				for (let i = 0; i < stages.length; i++) {
+					if (stages[i].selected) {
+						defaultStatus = i;
+						break;	
+					}
+				}
+
+				modelOptions.additionalData['currentStatus'] = defaultStatus;
+				modelOptions.additionalData['statusTemplateOrganization'] = ObjectUtil.getStringUnionProperty(modelOptions.authorization.organizationMember.organization);
 				break;
 		}
 	}
@@ -415,6 +524,75 @@ export class SalesLeadService extends BaseService<SalesLead> {
 				fulfill(deletedLeadContacts); 
 			})
 			.catch((err: Error) => reject(err));
+		});
+	}
+	
+	private deleteStages(data: AccountOrganization, idStages: string[]): Promise<UpdateResults> {
+		
+		return new Promise<UpdateResults>((resolve: Function, reject: Function) => {
+			if (idStages.length === 0) {
+				return resolve({ affected: 0 });
+			} 
+			
+			const condition = { statusTemplateOrganization: data._id };
+			const update = { $pull: { leadStatuses: { id: { $in: idStages }}} };
+			const options = { multi: true };
+			
+			this.updateSkippingHooks(condition, update, options)
+			.then((results: any) => {
+				resolve(results);
+			})
+			.catch((err) => reject(err));
+		});
+	}
+	
+	private updateStages(data: AccountOrganization, updated: UpdateValues[]): Promise<UpdateResults> {
+		
+		return new Promise<UpdateResults>((resolve: Function, reject: Function) => {
+			if (updated.length === 0) {
+				return resolve({ affected: 0 });
+			} 
+			
+			const stagesToUpdate: Promise<UpdateResults>[] = [];
+			
+			for (let i = 0; i < updated.length; i++) {
+				const condition = { statusTemplateOrganization: data._id, 'leadStatuses.id': updated[i].key };
+	
+				const setProperties = {};
+				for (let j = 0; j < updated[i].values.length; j++) {
+					const propToUpdate = 'leadStatuses.$.' + updated[i].values[j].name;
+					setProperties[propToUpdate] = updated[i].values[j].value;
+				}
+				const update = { $set: setProperties };
+				
+				const options = { multi: true };
+				stagesToUpdate.push(this.updateSkippingHooks(condition, update, options));	
+			}
+				
+			Promise.all(stagesToUpdate)
+			.then((results: UpdateResults[]) => {
+				resolve({ affected: results.length });
+			})
+			.catch((err) => reject(err));
+		});
+	}
+	
+	private addStages(data: AccountOrganization, newStages: LeadStatus[]): Promise<UpdateResults> {
+		
+		return new Promise<UpdateResults>((resolve: Function, reject: Function) => {
+			if (newStages.length === 0) {
+				return resolve({ affected: 0 });
+			} 
+			
+			const condition = { statusTemplateOrganization: data._id };
+			const update = { $push: { leadStatuses: { $each: newStages }}};
+			const options = { multi: true };
+			
+			this.updateSkippingHooks(condition, update, options)
+			.then((results: any) => {
+				resolve(results);
+			})
+			.catch((err) => reject(err));
 		});
 	}
 }

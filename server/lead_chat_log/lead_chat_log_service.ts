@@ -1,10 +1,9 @@
-﻿import {LogItem, ModelOptions, AuthorizationResponse, LogItemType} from '../../client/core/dto';
-import {LogItemModel, AddressBookContactModel} from '../core/model';
+﻿import {LeadChatLog, ModelOptions, AuthorizationResponse } from '../../client/core/dto';
+import {LeadChatLogModel, AddressBookContactModel} from '../core/model';
 import {BaseService} from '../core/base_service';
-import {logItemTypeService} from '../log_item_type/log_item_type_service';
 import {ObjectUtil} from '../../client/core/util';
 
-export class LogItemService extends BaseService<LogItem> {
+export class LeadChatLogService extends BaseService<LeadChatLog> {
 
 	constructor() {
 		const defaultModelOptions: ModelOptions = {
@@ -41,30 +40,11 @@ export class LogItemService extends BaseService<LogItem> {
 			],
 			copyAuthorizationData: ''
 		};
-		super(LogItemModel, defaultModelOptions);
+		super(LeadChatLogModel, defaultModelOptions);
 	}
 	
-	createStatusChangeLog(data: LogItem, modelOptions: ModelOptions): Promise<LogItem> {
-		return new Promise<LogItem>((resolve: Function, reject: Function) => {
-			const typeModelOptions: ModelOptions = {
-				authorization: modelOptions.authorization,
-				requireAuthorization: false,
-				copyAuthorizationData: ''
-			};
-			logItemTypeService.findOne({ code: 'STCH'}, typeModelOptions)
-			.then((logItemType: LogItemType) => {
-				data.type = logItemType;
-				return this.createOne(data, modelOptions);
-			})
-			.then((logItem: LogItem) => {
-				resolve(logItem);
-			})
-			.catch((err) => reject(err));
-		});	
-	}
-	
-	findLimited(data: LogItem, newOptions: ModelOptions = {}): Promise<LogItem[]> {
-		return new Promise<LogItem[]>((resolve: Function, reject: Function) => {
+	findLimited(data: LeadChatLog, newOptions: ModelOptions = {}): Promise<LeadChatLog[]> {
+		return new Promise<LeadChatLog[]>((resolve: Function, reject: Function) => {
 			const txModelOptions = this.obtainTransactionModelOptions(newOptions);
 			const authorizationResponse = this.isSearchAuthorized(txModelOptions);
 			if (!authorizationResponse.isAuthorized) {
@@ -84,23 +64,23 @@ export class LogItemService extends BaseService<LogItem> {
 		});
 	}
 	
-	find(data: LogItem, newOptions: ModelOptions = {}): Promise<LogItem[]> {
-		return new Promise<LogItem[]>((resolve: Function, reject: Function) => {
+	find(data: LeadChatLog, newOptions: ModelOptions = {}): Promise<LeadChatLog[]> {
+		return new Promise<LeadChatLog[]>((resolve: Function, reject: Function) => {
 			this.findLimited(data, newOptions)
-			.then((logItems: LogItem[]) => {
-				if (logItems.length === 1) {
-					if (ObjectUtil.isPresent(logItems[0].createdAt)) {
+			.then((leadChatLogs: LeadChatLog[]) => {
+				if (leadChatLogs.length === 1) {
+					if (ObjectUtil.isPresent(leadChatLogs[0].createdAt)) {
 						newOptions.additionalData = {
-							createdAt: { $lt: logItems[0].createdAt }	
+							createdAt: { $lt: leadChatLogs[0].createdAt }	
 						};
 					}
 					return this.findLimited({}, newOptions);
 				}  
-				resolve(logItems);		
+				resolve(leadChatLogs);		
 					
 			})
-			.then((logItems: LogItem[]) => {
-				resolve(logItems);			
+			.then((leadChatLogs: LeadChatLog[]) => {
+				resolve(leadChatLogs);			
 			})
 			.catch((err) => reject(err));
 		});
@@ -164,28 +144,26 @@ export class LogItemService extends BaseService<LogItem> {
 	}
 	
 	protected validateAuthDataPostSearchUpdate(modelOptions: ModelOptions = {}, 
-		data?: LogItem): AuthorizationResponse {
-		const isLogItemOwner =  modelOptions.authorization.leadMember._id.toString() === 
+		data?: LeadChatLog): AuthorizationResponse {
+		const isLeadChatLogOwner =  modelOptions.authorization.leadMember._id.toString() === 
 			ObjectUtil.getStringUnionProperty(data.createdBy).toString();
-		if (isLogItemOwner) {
+		if (isLeadChatLogOwner) {
 			return this.createAuthorizationResponse();
 		}
 		return this.createAuthorizationResponse('Unauthorized document update');
 	}
 	
 	protected validateAuthDataPostSearchRemove(modelOptions: ModelOptions = {}, 
-		data?: LogItem): AuthorizationResponse {
+		data?: LeadChatLog): AuthorizationResponse {
 			
-		console.log(data);
-		console.log( modelOptions.authorization.leadMember);
-		const isLogItemOwner =  modelOptions.authorization.leadMember._id.toString() === 
+		const isLeadChatLogOwner =  modelOptions.authorization.leadMember._id.toString() === 
 			ObjectUtil.getStringUnionProperty(data.createdBy).toString();
-		if (isLogItemOwner) {
+		if (isLeadChatLogOwner) {
 			return this.createAuthorizationResponse();
 		}
 		return this.createAuthorizationResponse('Unauthorized document remove');
 	}
 }
 
-export const logItemService = new LogItemService();
+export const leadChatLogService = new LeadChatLogService();
 
